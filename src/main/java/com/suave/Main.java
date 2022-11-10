@@ -2,18 +2,17 @@ package com.suave;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
-import cn.hutool.core.util.ReUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.http.HtmlUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
-import com.alibaba.fastjson2.JSONObject;
-import com.suave.entity.InitialStateEntity;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Random;
 
 /**
@@ -22,38 +21,57 @@ import java.util.Random;
  */
 public class Main {
 
-    public static final String URL = "https://fanqienovel.com/page/6838086444733434884";
+    public static final String URL = "http://www.chinapublaw.com/book/3789/";
 
     public static void main(String[] args) throws IOException {
-        HttpResponse response = HttpRequest.get(URL).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
-        String body = response.body().replace(" ", "");
-        // chapter-item
+        HttpResponse response = HttpRequest.get(URL).header("User-Agent", "Mozilla/5.0").execute();
+        String body = response.body();
         // 截取body
-        body = StrUtil.sub(body, body.indexOf("<body>"), body.indexOf("</body>") + 7);
-        // 截取第一个script
-        body = StrUtil.sub(body, body.indexOf("<script>"), body.indexOf(";"));
-        body = StrUtil.sub(body, body.indexOf("=") + 1, body.length());
-        InitialStateEntity initialStateEntity = JSONObject.parseObject(body, InitialStateEntity.class);
-        File file = FileUtil.file("/Users/suave/Desktop/" + initialStateEntity.getPage().getBookName() + ".txt");
+        Document document = Jsoup.parse(body);
+        Elements info = document.getElementsByClass("top");
+        Elements h1 = info.get(0).getElementsByTag("h1");
+        File file = FileUtil.file("/Users/suave/Desktop/" + h1.text() + ".txt");
         if (FileUtil.exist(file)) {
             FileUtil.del(file);
         }
         file.createNewFile();
+        Elements elements = document.getElementsByClass("section-list");
         FileOutputStream stream = new FileOutputStream(file);
-        for (List<InitialStateEntity.PageDTO.ChapterListWithVolumeDTO> chapterListWithVolumeDTO : initialStateEntity.getPage().getChapterListWithVolume()) {
-            for (InitialStateEntity.PageDTO.ChapterListWithVolumeDTO listWithVolumeDTO : chapterListWithVolumeDTO) {
-                stream.write(listWithVolumeDTO.getTitle().getBytes());
-                stream.write("\n".getBytes());
-                System.out.println(listWithVolumeDTO.getTitle());
-                HttpResponse pageResponse = HttpRequest.get(StrUtil.format("https://fanqienovel.com/reader/{}?enter_from=page", listWithVolumeDTO.getItemId())).header("User-Agent", "Mozilla/5.0").execute();
-                String pageBody = pageResponse.body();
-                List<String> all = ReUtil.findAll("<div class=\"muye-reader-content noselect\">(.*?)</div>", pageBody, 1);
-                for (String p : all) {
-                    stream.write(HtmlUtil.cleanHtmlTag(p).getBytes());
-                }
-                stream.write("\n".getBytes());
-            }
+        for (Element element : elements.get(1).getElementsByTag("a")) {
+            stream.write(element.text().getBytes());
+            stream.write("\n".getBytes());
+            System.out.println(element.text());
+            String href = element.attr("href");
+            String url = StrUtil.format("http://www.chinapublaw.com{}", href);
+            HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+            String pageBody = pageResponse.body();
+            Document articleDocument = Jsoup.parse(pageBody);
+            Element content = articleDocument.getElementById("content");
+            content.select("div").remove();
+            stream.write(content.text().getBytes());
+            stream.write("\n".getBytes());
+
+            url = StrUtil.format("http://www.chinapublaw.com{}", StrUtil.sub(href, 0, -5) + "_2.html");
+            pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+            pageBody = pageResponse.body();
+            articleDocument = Jsoup.parse(pageBody);
+            content = articleDocument.getElementById("content");
+            content.select("div").remove();
+            stream.write(content.text().getBytes());
+            stream.write("\n".getBytes());
         }
+//            for (InitialStateEntity.PageDTO.ChapterListWithVolumeDTO listWithVolumeDTO : chapterListWithVolumeDTO) {
+//                stream.write(listWithVolumeDTO.getTitle().getBytes());
+//                stream.write("\n".getBytes());
+//                System.out.println(listWithVolumeDTO.getTitle());
+//                HttpResponse pageResponse = HttpRequest.get(StrUtil.format("https://fanqienovel.com/reader/{}?enter_from=page", listWithVolumeDTO.getItemId())).header("User-Agent", "Mozilla/5.0").execute();
+//                String pageBody = pageResponse.body();
+//                List<String> all = ReUtil.findAll("<div class=\"muye-reader-content noselect\">(.*?)</div>", pageBody, 1);
+//                for (String p : all) {
+//                    stream.write(HtmlUtil.cleanHtmlTag(p).getBytes());
+//                }
+//                stream.write("\n".getBytes());
+//            }
     }
 
     public static String getRandomIp() {
