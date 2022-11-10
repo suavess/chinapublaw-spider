@@ -66,18 +66,6 @@ public class Main {
             stream.write(content.text().getBytes());
             stream.write("\n".getBytes());
         }
-//            for (InitialStateEntity.PageDTO.ChapterListWithVolumeDTO listWithVolumeDTO : chapterListWithVolumeDTO) {
-//                stream.write(listWithVolumeDTO.getTitle().getBytes());
-//                stream.write("\n".getBytes());
-//                System.out.println(listWithVolumeDTO.getTitle());
-//                HttpResponse pageResponse = HttpRequest.get(StrUtil.format("https://fanqienovel.com/reader/{}?enter_from=page", listWithVolumeDTO.getItemId())).header("User-Agent", "Mozilla/5.0").execute();
-//                String pageBody = pageResponse.body();
-//                List<String> all = ReUtil.findAll("<div class=\"muye-reader-content noselect\">(.*?)</div>", pageBody, 1);
-//                for (String p : all) {
-//                    stream.write(HtmlUtil.cleanHtmlTag(p).getBytes());
-//                }
-//                stream.write("\n".getBytes());
-//            }
     }
 
     public static String getRandomIp() {
