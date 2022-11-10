@@ -1,5 +1,6 @@
 package com.suave;
 
+import cn.hutool.core.date.TimeInterval;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
@@ -24,6 +25,7 @@ public class Main {
     public static final String URL = "http://www.chinapublaw.com/book/3789/";
 
     public static void main(String[] args) throws IOException {
+        TimeInterval timer = new TimeInterval();
         HttpResponse response = HttpRequest.get(URL).header("User-Agent", "Mozilla/5.0").execute();
         String body = response.body();
         // 截取body
@@ -43,7 +45,9 @@ public class Main {
             System.out.println(element.text());
             String href = element.attr("href");
             String url = StrUtil.format("http://www.chinapublaw.com{}", href);
+            timer.restart();
             HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+            System.out.println("1请求耗时" + timer.interval());
             String pageBody = pageResponse.body();
             Document articleDocument = Jsoup.parse(pageBody);
             Element content = articleDocument.getElementById("content");
@@ -52,7 +56,9 @@ public class Main {
             stream.write("\n".getBytes());
 
             url = StrUtil.format("http://www.chinapublaw.com{}", StrUtil.sub(href, 0, -5) + "_2.html");
+            timer.restart();
             pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+            System.out.println("2请求耗时" + timer.interval());
             pageBody = pageResponse.body();
             articleDocument = Jsoup.parse(pageBody);
             content = articleDocument.getElementById("content");
