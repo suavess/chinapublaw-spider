@@ -1,6 +1,5 @@
 package com.suave;
 
-import cn.hutool.core.date.TimeInterval;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
@@ -14,7 +13,11 @@ import org.jsoup.select.Elements;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Suave
@@ -24,12 +27,12 @@ public class Main {
 
     public static final String URL = "http://www.chinapublaw.com/book/3789/";
 
+    public static Integer flag = 0;
+
     public static void main(String[] args) throws IOException {
-        TimeInterval timer = new TimeInterval();
         HttpResponse response = HttpRequest.get(URL).header("User-Agent", "Mozilla/5.0").execute();
-        String body = response.body();
         // 截取body
-        Document document = Jsoup.parse(body);
+        Document document = Jsoup.parse(response.body());
         Elements info = document.getElementsByClass("top");
         Elements h1 = info.get(0).getElementsByTag("h1");
         File file = FileUtil.file("/Users/suave/Desktop/" + h1.text() + ".txt");
@@ -37,34 +40,59 @@ public class Main {
             FileUtil.del(file);
         }
         file.createNewFile();
-        Elements elements = document.getElementsByClass("section-list");
         FileOutputStream stream = new FileOutputStream(file);
-        for (Element element : elements.get(1).getElementsByTag("a")) {
+        // 线程池
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        Elements pageElements = document.getElementsByClass("section-list").get(1).getElementsByTag("a");
+        for (int i = 0; i < pageElements.size(); i++) {
+            Element element = pageElements.get(i);
             stream.write(element.text().getBytes());
             stream.write("\n".getBytes());
-            System.out.println(element.text());
             String href = element.attr("href");
-            String url = StrUtil.format("http://www.chinapublaw.com{}", href);
-            timer.restart();
-            HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
-            System.out.println("1请求耗时" + timer.interval());
-            String pageBody = pageResponse.body();
-            Document articleDocument = Jsoup.parse(pageBody);
-            Element content = articleDocument.getElementById("content");
-            content.select("div").remove();
-            stream.write(content.text().getBytes());
-            stream.write("\n".getBytes());
-
-            url = StrUtil.format("http://www.chinapublaw.com{}", StrUtil.sub(href, 0, -5) + "_2.html");
-            timer.restart();
-            pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
-            System.out.println("2请求耗时" + timer.interval());
-            pageBody = pageResponse.body();
-            articleDocument = Jsoup.parse(pageBody);
-            content = articleDocument.getElementById("content");
-            content.select("div").remove();
-            stream.write(content.text().getBytes());
-            stream.write("\n".getBytes());
+            int finalI = i;
+            executor.execute(() -> {
+                String url = StrUtil.format("http://www.chinapublaw.com{}", href);
+                HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+                Document articleDocument = Jsoup.parse(pageResponse.body());
+                Element content = articleDocument.getElementById("content");
+                content.select("div").remove();
+                while (!Objects.equals(flag, finalI * 2)) {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(10);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                try {
+                    stream.write(content.text().getBytes());
+                    stream.write("\n".getBytes());
+                    System.out.println(element.text());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                flag++;
+            });
+            executor.execute(() -> {
+                String url = StrUtil.format("http://www.chinapublaw.com{}", StrUtil.sub(href, 0, -5) + "_2.html");
+                HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
+                Element content = Jsoup.parse(pageResponse.body()).getElementById("content");
+                content.select("div").remove();
+                while (!Objects.equals(flag, finalI * 2 + 1)) {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(10);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                try {
+                    stream.write(content.text().getBytes());
+                    stream.write("\n".getBytes());
+                    System.out.println(element.text() + "_2");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                flag++;
+            });
         }
     }
 
