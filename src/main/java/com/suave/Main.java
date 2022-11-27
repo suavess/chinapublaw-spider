@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class Main {
 
-    public static final String URL = "http://www.chinapublaw.com/book/3789/";
+    public static final String URL = "http://www.chinapublaw.com/book/13330/";
 
     public static Integer flag = 0;
 
@@ -46,14 +46,13 @@ public class Main {
         Elements pageElements = document.getElementsByClass("section-list").get(1).getElementsByTag("a");
         for (int i = 0; i < pageElements.size(); i++) {
             Element element = pageElements.get(i);
-            stream.write(element.text().getBytes());
-            stream.write("\n".getBytes());
             String href = element.attr("href");
             int finalI = i;
             executor.execute(() -> {
                 String url = StrUtil.format("http://www.chinapublaw.com{}", href);
                 HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
                 Document articleDocument = Jsoup.parse(pageResponse.body());
+                Elements title = articleDocument.getElementsByClass("title");
                 Element content = articleDocument.getElementById("content");
                 content.select("div").remove();
                 while (!Objects.equals(flag, finalI * 2)) {
@@ -64,6 +63,8 @@ public class Main {
                     }
                 }
                 try {
+                    stream.write(title.get(0).text().getBytes());
+                    stream.write("\n".getBytes());
                     stream.write(content.text().getBytes());
                     stream.write("\n".getBytes());
                     System.out.println(element.text());
@@ -75,7 +76,8 @@ public class Main {
             executor.execute(() -> {
                 String url = StrUtil.format("http://www.chinapublaw.com{}", StrUtil.sub(href, 0, -5) + "_2.html");
                 HttpResponse pageResponse = HttpRequest.get(url).header("User-Agent", "Mozilla/5.0").header("X-Forwarded-For", getRandomIp()).execute();
-                Element content = Jsoup.parse(pageResponse.body()).getElementById("content");
+                Document articleDocument = Jsoup.parse(pageResponse.body());
+                Element content = articleDocument.getElementById("content");
                 content.select("div").remove();
                 while (!Objects.equals(flag, finalI * 2 + 1)) {
                     try {
